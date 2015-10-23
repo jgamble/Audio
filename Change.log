@@ -1,3 +1,12 @@
+2.00
+	Oct 23 2015
+	- Created Buil.PL files from Makefile.Pl files, using
+	  make2build script from Module::Build::Convert.
+	- Dumped solve_polynomial() from Data.pm. Removed AutoLoad
+	  module use and $epsilon calculation which existed for it.
+	- tkscope now uses Math::Polynomial::Solve instead of an
+	  Autoloaded solve_polynomial() function.
+
 Change 3304 on 2004/06/02 by nick@llama
 
 	Audio-1.029 Release Preparation
