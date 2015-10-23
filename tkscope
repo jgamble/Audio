@@ -1,15 +1,22 @@
-#!/usr/local/bin/perl -w
+#!/usr/local/bin/perl
+
+use 5.010001;
 use strict;
+use warnings;
+
 use Tk;
 use Tk::widgets qw(Canvas);
-use Audio::Data qw(solve_polynomial);
+use Audio::Data;
 use Audio::Play;
 use Audio::Filter;
+use Math::Complex;
+use Math::Polynomial::Solve qw(:numeric);
 use Tk::Scope;
 use Carp;
 use File::Basename qw(dirname);
 use File::Spec;
 use Cwd;
+
 my $lcwd = getcwd();
 my $scwd = $lcwd;
 
@@ -579,53 +586,58 @@ sub roots
  my $durbin = shift;
  my $rate = $durbin->rate;
  my @lpc = $durbin->data;
- my $n = @lpc;
- # warn "$LPC_POLES => $n\n";
+ 
  # 1st term in @lpc is not interesting, typically a gain term
  my $err = shift(@lpc);
+
  # Remaining terms are A[N] terms in demominator of all-pole
  # filter equation H(z) = 1/(1-Sigma(1,N,A[i] * z**(-i)))
  # Form array of coefficients
- my @poly = (1.0,map { -$_ } @lpc);
- my @roots = solve_polynomial(@poly);
+ my @poly = (1.0, map { -$_ } @lpc);
+ my @roots = poly_roots(reverse @poly);
+
  # Values of roots are values of z**-1 i.e. 1/Z
  # So poles are at 1/root. For 1/root to be inside unit circle
  # roots above should be outside! i.e. abs(root) > 1
  my $k = 0;
- my $pi2 = 2*Audio::Data::PI();
+ my $pi2 = 2*pi;
  my @fmt;
- if (@roots)
-  {
-   #warn "$why ".join(',',@poly).":\n";
-   while (@roots)
-    {
-     my ($r,$i) = splice(@roots,0,2);
+
+   #warn "$why ".join(',', @poly).":\n";
+   while (scalar @roots)
+   {
+     my $x = shift @roots;
+     my $i = Im($x);
+     my $r = Re($x);
+
+     #
+     # If it's a complex number, save it. Dump its complex conjugate,
+     # which which it is paired.
+     #
      if ($i != 0)
-      {
-       my ($r2,$i2) = splice(@roots,0,2);
-       if ($r2 != $r || $i2 != -$i)
-        {
-	 warn "Weird $r+${i}i and $r2${i2}i";
-	 next;
-	}
+     {
+       shift @roots;
+
        my $f = $rate*atan2($i,$r)/$pi2;
        my $b = $rate*log($r*$r+$i*$i)/$pi2;
        push(@fmt,[$f,$b,$r,$i]);
-      }
+     }
      else
-      {
+     {
        # real pole i.e. f=0 - a lowpass term
        # printf " %.3g\n",$r;
-      }
-    }
-  }
+     }
+   }
+
  $txt->delete('1.0','end');
+
  foreach my $f (sort { ($a->[1] > 500) <=> ($b->[1] > 500) || $a->[0] <=> $b->[0] } @fmt)
-  {
+ {
    my ($f,$b,$r,$i) = @$f;
    pole_pair($rate,$k++,$f,$b,$r,$i);
-  }
- while ($k < @formant)
+ }
+
+  while ($k < @formant)
   {
    $poles->itemconfigure($pole[$k][0],-state => 'hidden');
    $poles->itemconfigure($pole[$k][1],-state => 'hidden');
